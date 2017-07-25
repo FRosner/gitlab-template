@@ -15,6 +15,7 @@ val validateCommands = List(
 addCommandAlias("validate", validateCommands.mkString(";", ";", ""))
 
 lazy val root = (project in file("."))
+  .configs(IntegrationTest)
   .settings(
     name := "gitlab-template",
     startYear := Some(2017),
@@ -33,6 +34,7 @@ lazy val root = (project in file("."))
         Some("releases" at nexus + "service/local/staging/deploy/maven2")
     },
     releasePublishArtifactsAction := PgpKeys.publishSigned.value,
+    Defaults.itSettings,
     // Build settings of this project
     // Macro tooling (for simulacrum and others)
     addCompilerPlugin(
@@ -48,9 +50,9 @@ lazy val root = (project in file("."))
       // Generic programming over data structures
       "com.chuusai" %% "shapeless" % "2.3.2",
       // Test framework
-      "org.scalatest" %% "scalatest" % "3.0.1" % Test,
+      "org.scalatest" %% "scalatest" % "3.0.1" % "it,test",
       // Property testing
-      "org.scalacheck" %% "scalacheck" % "1.13.4" % Test
+      "org.scalacheck" %% "scalacheck" % "1.13.4" % "it,test"
     ),
     // Build settings for all projects in this build
     inThisBuild(
