@@ -52,7 +52,7 @@ object Main extends StrictLogging {
     val dryRun = false // TODO configurable
 
     val gitlabClient =
-      new GitlabClient(wsClient, gitlabUrl, "GNvDFFr7SHzZf6Zte5Xq")
+      new GitlabSource(wsClient, gitlabUrl, "GNvDFFr7SHzZf6Zte5Xq")
 
     val ex = new ScheduledThreadPoolExecutor(1)
     val task = new Runnable {
