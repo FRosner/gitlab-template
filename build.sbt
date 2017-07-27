@@ -52,6 +52,9 @@ lazy val root = (project in file("."))
       "com.typesafe.play" %% "play-ws-standalone-json" % "1.0.2",
       // Nicer syntax for type classes
       "com.github.mpilquist" %% "simulacrum" % "0.10.0",
+      // Logging
+      "ch.qos.logback" % "logback-classic" % "1.2.3",
+      "com.typesafe.scala-logging" %% "scala-logging" % "3.7.2",
       // Generic programming over data structures
       "com.chuusai" %% "shapeless" % "2.3.2",
       // Test framework
