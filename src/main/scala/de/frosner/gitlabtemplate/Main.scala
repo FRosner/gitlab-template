@@ -20,6 +20,7 @@ import java.util.concurrent._
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.StrictLogging
 import play.api.libs.json.{JsPath, JsonValidationError}
 import play.api.libs.ws.ahc._
@@ -32,6 +33,13 @@ import scala.util.{Failure, Success}
 object Main extends StrictLogging {
 
   def main(args: Array[String]): Unit = {
+    val config = ConfigFactory.load()
+    config.checkValid(ConfigFactory.defaultReference())
+    val settings = Settings.fromConfig(config.getConfig("gitlabtemplate"))
+    settings.flatToString.foreach {
+      case (key, value) => logger.info(s"Using configuration: $key='$value'")
+    }
+
     implicit val system = ActorSystem()
     system.registerOnTermination {
       System.exit(0)
@@ -45,19 +53,13 @@ object Main extends StrictLogging {
       system.terminate()
     }
 
-    val allowEmpty = true // TODO configurable
-    val requireActive = false // TODO configurable
-    val pollingFreqSec = 2L // TODO configurable
-    val gitlabUrl = "http://localhost" // TODO configurable
-    val dryRun = false // TODO configurable
-
     val gitlabClient =
-      new GitlabSource(wsClient, gitlabUrl, "GNvDFFr7SHzZf6Zte5Xq")
+      new GitlabSource(wsClient, settings.gitlab.url, settings.gitlab.privateToken)
 
     val ex = new ScheduledThreadPoolExecutor(1)
     val task = new Runnable {
       def run() = {
-        val futureUsers = gitlabClient.getUsers(requireActive)
+        val futureUsers = gitlabClient.getUsers(settings.gitlab.requireActive)
         val futureSshKeys: Future[Either[Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]]] =
           futureUsers.flatMap {
             case Left(error)  => Future.successful(Left(error))
@@ -66,7 +68,7 @@ object Main extends StrictLogging {
         val filteredFutureSshKeys = futureSshKeys.map {
           _.map {
             _.filter {
-              case (user, keys) => keys.nonEmpty || allowEmpty
+              case (user, keys) => keys.nonEmpty || settings.gitlab.requireActive
             }
           }
         }
@@ -86,7 +88,7 @@ object Main extends StrictLogging {
         Await.ready(filteredFutureSshKeys, Duration(10, TimeUnit.SECONDS))
       }
     }
-    val f = ex.scheduleAtFixedRate(task, 0, pollingFreqSec, TimeUnit.SECONDS)
+    val f = ex.scheduleAtFixedRate(task, 0, settings.gitlab.pollingFreqSec, TimeUnit.SECONDS)
   }
 
 }
