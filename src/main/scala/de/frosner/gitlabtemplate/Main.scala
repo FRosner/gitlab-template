@@ -62,7 +62,7 @@ object Main extends StrictLogging {
         val futureUsers = gitlabClient.getUsers(settings.gitlab.requireActive)
         val futureSshKeys: Future[Either[Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]]] =
           futureUsers.flatMap {
-            case Left(error)  => Future.successful(Left(error))
+            case Left(error) => Future.successful(Left(error))
             case Right(users) => gitlabClient.getSshKeys(users)
           }
         val filteredFutureSshKeys = futureSshKeys.map {
