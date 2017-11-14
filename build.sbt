@@ -97,7 +97,6 @@ lazy val root = (project in file("."))
         ),
         // Scala versions we build for
         scalaVersion := "2.12.1",
-        crossScalaVersions := List("2.12.1", "2.11.8"),
         // Build settings
         scalacOptions ++= List(
           // Code encoding
