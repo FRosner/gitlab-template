@@ -17,7 +17,8 @@
 package de.frosner.gitlabtemplate
 
 import java.nio.file.Path
-import scala.concurrent.duration.Duration
+
+import scala.concurrent.duration.FiniteDuration
 
 case class GitlabTemplateConfig(source: SourceConfig, sink: SinkConfig, dryRun: Boolean)
 
@@ -25,6 +26,6 @@ case class SourceConfig(gitlab: GitlabConfig)
 
 case class SinkConfig(filesystem: FilesystemConfig)
 
-case class GitlabConfig(onlyActiveUsers: Boolean, privateToken: String, pollingFrequency: Duration, url: String)
+case class GitlabConfig(onlyActiveUsers: Boolean, privateToken: String, pollingFrequency: FiniteDuration, url: String)
 
 case class FilesystemConfig(path: Path, publicKeysFile: String, createEmptyKeyFile: Boolean)

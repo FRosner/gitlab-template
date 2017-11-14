@@ -29,7 +29,10 @@ import pureconfig._
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
+import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
+import monix.execution.ExecutionModel.AlwaysAsyncExecution
+import monix.execution.{Scheduler, UncaughtExceptionReporter}
 
 object Main extends StrictLogging {
 
@@ -57,52 +60,57 @@ object Main extends StrictLogging {
     val filesystemSink =
       new FileSystemSink(filesystemConf.path, filesystemConf.publicKeysFile, filesystemConf.createEmptyKeyFile)
 
-    val ex = new ScheduledThreadPoolExecutor(1)
-    val task = new Runnable {
-      def run(): Unit =
-        Try {
-          val futureUsers = gitlabClient.getUsers(conf.source.gitlab.onlyActiveUsers)
-          val futureSshKeys: Future[Either[Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]]] =
-            futureUsers.flatMap {
-              case Left(error)  => Future.successful(Left(error))
-              case Right(users) => gitlabClient.getSshKeys(users)
-            }
-          val filteredFutureSshKeys = futureSshKeys.map {
-            _.map {
-              _.filter {
-                case (user, keys) => keys.nonEmpty || gitlabConf.onlyActiveUsers
-              }
+    val executorService = scala.concurrent.ExecutionContext.Implicits.global
+    val scheduler =
+      Scheduler(
+        Executors.newSingleThreadScheduledExecutor(),
+        executorService,
+        UncaughtExceptionReporter(executorService.reportFailure),
+        AlwaysAsyncExecution
+      )
+    scheduler.scheduleWithFixedDelay(0.seconds, gitlabConf.pollingFrequency) {
+      Try {
+        val futureUsers = gitlabClient.getUsers(conf.source.gitlab.onlyActiveUsers)
+        val futureSshKeys: Future[Either[Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]]] =
+          futureUsers.flatMap {
+            case Left(error)  => Future.successful(Left(error))
+            case Right(users) => gitlabClient.getSshKeys(users)
+          }
+        val filteredFutureSshKeys = futureSshKeys.map {
+          _.map {
+            _.filter {
+              case (user, keys) => keys.nonEmpty || gitlabConf.onlyActiveUsers
             }
           }
-
-          filteredFutureSshKeys.onComplete {
-            case Failure(error) =>
-              logger.error(s"Extracting keys failed: ${error.getMessage}")
-            case Success(Left(error)) =>
-              throw new Exception(s"Cannot parse Gitlab response: $error")
-            case Success(Right(usersAndKeys)) =>
-              if (conf.dryRun) {
-                usersAndKeys.foreach {
-                  case (user, keys) =>
-                    keys.foreach(key => logger.info(s"$user\t $key"))
-                }
-              } else {
-                filesystemSink.write(usersAndKeys) match {
-                  case Success((numUsers, numKeys)) =>
-                    logger.debug(s"Successfully persisted a total of $numKeys key(s) for $numUsers user(s)")
-                  case Failure(exception) => throw exception
-                }
-              }
-          }
-          Await.ready(filteredFutureSshKeys, Duration(10, TimeUnit.SECONDS))
-        }.recover {
-          case throwable =>
-            throwable.printStackTrace()
-            System.exit(1)
-            throw throwable
         }
+
+        filteredFutureSshKeys.onComplete {
+          case Failure(error) =>
+            logger.error(s"Extracting keys failed: ${error.getMessage}")
+          case Success(Left(error)) =>
+            throw new Exception(s"Cannot parse Gitlab response: $error")
+          case Success(Right(usersAndKeys)) =>
+            if (conf.dryRun) {
+              usersAndKeys.foreach {
+                case (user, keys) =>
+                  keys.foreach(key => logger.info(s"$user\t $key"))
+              }
+            } else {
+              filesystemSink.write(usersAndKeys) match {
+                case Success((numUsers, numKeys)) =>
+                  logger.debug(s"Successfully persisted a total of $numKeys key(s) for $numUsers user(s)")
+                case Failure(exception) => throw exception
+              }
+            }
+        }
+        Await.ready(filteredFutureSshKeys, Duration(10, TimeUnit.SECONDS))
+      }.recover {
+        case throwable =>
+          throwable.printStackTrace()
+          System.exit(1)
+          throw throwable
+      }
     }
-    val f = ex.scheduleAtFixedRate(task, 0, gitlabConf.pollingFrequency.toSeconds, TimeUnit.SECONDS)
   }
 
 }

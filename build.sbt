@@ -61,7 +61,9 @@ lazy val root = (project in file("."))
       // Property testing
       "org.scalacheck" %% "scalacheck" % "1.13.4" % "it,test",
       // Config
-      "com.github.pureconfig" %% "pureconfig" % "0.8.0"
+      "com.github.pureconfig" %% "pureconfig" % "0.8.0",
+      // Asynchronous programming
+      "io.monix" %% "monix" % "2.3.2"
     ),
     // Build settings for all projects in this build
     inThisBuild(
