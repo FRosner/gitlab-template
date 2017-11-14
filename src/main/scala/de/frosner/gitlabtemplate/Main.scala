@@ -24,6 +24,7 @@ import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.StrictLogging
 import play.api.libs.json.{JsPath, JsonValidationError}
 import play.api.libs.ws.ahc._
+import pureconfig._
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -33,12 +34,9 @@ import scala.util.{Failure, Success, Try}
 object Main extends StrictLogging {
 
   def main(args: Array[String]): Unit = {
-    val config = ConfigFactory.load()
-    config.checkValid(ConfigFactory.defaultReference())
-    val settings = Settings.fromConfig(config.getConfig("gitlabtemplate"))
-    settings.flatToString.foreach {
-      case (key, value) => logger.info(s"Using configuration: $key='$value'")
-    }
+    val conf = loadConfigOrThrow[GitlabTemplateConfig](ConfigFactory.load().getConfig("gitlab-template"))
+    val gitlabConf = conf.source.gitlab
+    val filesystemConf = conf.sink.filesystem
 
     implicit val system = ActorSystem()
     system.registerOnTermination {
@@ -54,16 +52,16 @@ object Main extends StrictLogging {
     }
 
     val gitlabClient =
-      new GitlabSource(wsClient, settings.gitlab.url, settings.gitlab.privateToken)
+      new GitlabSource(wsClient, gitlabConf.url, gitlabConf.privateToken)
 
     val filesystemSink =
-      new FileSystemSink(settings.fileSystem.path, settings.fileSystem.publicKeysFile, settings.fileSystem.allowEmpty)
+      new FileSystemSink(filesystemConf.path, filesystemConf.publicKeysFile, filesystemConf.createEmptyKeyFile)
 
     val ex = new ScheduledThreadPoolExecutor(1)
     val task = new Runnable {
       def run(): Unit =
         Try {
-          val futureUsers = gitlabClient.getUsers(settings.gitlab.requireActive)
+          val futureUsers = gitlabClient.getUsers(conf.source.gitlab.onlyActiveUsers)
           val futureSshKeys: Future[Either[Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]]] =
             futureUsers.flatMap {
               case Left(error)  => Future.successful(Left(error))
@@ -72,7 +70,7 @@ object Main extends StrictLogging {
           val filteredFutureSshKeys = futureSshKeys.map {
             _.map {
               _.filter {
-                case (user, keys) => keys.nonEmpty || settings.gitlab.requireActive
+                case (user, keys) => keys.nonEmpty || gitlabConf.onlyActiveUsers
               }
             }
           }
@@ -83,7 +81,7 @@ object Main extends StrictLogging {
             case Success(Left(error)) =>
               throw new Exception(s"Cannot parse Gitlab response: $error")
             case Success(Right(usersAndKeys)) =>
-              if (settings.dryRun) {
+              if (conf.dryRun) {
                 usersAndKeys.foreach {
                   case (user, keys) =>
                     keys.foreach(key => logger.info(s"$user\t $key"))
@@ -104,7 +102,7 @@ object Main extends StrictLogging {
             throw throwable
         }
     }
-    val f = ex.scheduleAtFixedRate(task, 0, settings.gitlab.pollingFreqSec, TimeUnit.SECONDS)
+    val f = ex.scheduleAtFixedRate(task, 0, gitlabConf.pollingFrequency.toSeconds, TimeUnit.SECONDS)
   }
 
 }

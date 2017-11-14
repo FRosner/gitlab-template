@@ -16,26 +16,15 @@
 
 package de.frosner.gitlabtemplate
 
-import java.nio.file.{Path, Paths}
+import java.nio.file.Path
+import scala.concurrent.duration.Duration
 
-import com.typesafe.config.Config
+case class GitlabTemplateConfig(source: SourceConfig, sink: SinkConfig, dryRun: Boolean)
 
-case class FileSystemSettings(path: Path, publicKeysFile: String, allowEmpty: Boolean) {
+case class SourceConfig(gitlab: GitlabConfig)
 
-  val flatToString: Seq[(String, String)] = Seq(
-    ("allowEmpty", allowEmpty.toString),
-    ("path", s"$path (${path.toAbsolutePath})"),
-    ("publicKeysFile", publicKeysFile)
-  )
+case class SinkConfig(filesystem: FilesystemConfig)
 
-}
+case class GitlabConfig(onlyActiveUsers: Boolean, privateToken: String, pollingFrequency: Duration, url: String)
 
-object FileSystemSettings {
-
-  def fromConfig(config: Config): FileSystemSettings = FileSystemSettings(
-    allowEmpty = config.getBoolean("createEmptyKeyFile"),
-    path = Paths.get(config.getString("path")),
-    publicKeysFile = config.getString("publicKeysFile")
-  )
-
-}
+case class FilesystemConfig(path: Path, publicKeysFile: String, createEmptyKeyFile: Boolean)
