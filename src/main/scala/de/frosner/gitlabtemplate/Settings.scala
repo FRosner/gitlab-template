@@ -18,10 +18,10 @@ package de.frosner.gitlabtemplate
 
 import com.typesafe.config.Config
 
-case class Settings(gitlab: GitlabSettings, fileSystem: FileSystemSettings) {
+case class Settings(gitlab: GitlabSettings, fileSystem: FileSystemSettings, dryRun: Boolean) {
 
   val flatToString: Seq[(String, String)] = {
-    gitlab.flatToString ++ fileSystem.flatToString
+    gitlab.flatToString ++ fileSystem.flatToString ++ List(("dryRun", dryRun.toString))
   }
 
 }
@@ -30,7 +30,8 @@ object Settings {
 
   def fromConfig(config: Config): Settings = Settings(
     gitlab = GitlabSettings.fromConfig(config.getConfig("source.gitlab")),
-    fileSystem = FileSystemSettings.fromConfig(config.getConfig("sink.filesystem"))
+    fileSystem = FileSystemSettings.fromConfig(config.getConfig("sink.filesystem")),
+    dryRun = config.getBoolean("dryRun")
   )
 
 }

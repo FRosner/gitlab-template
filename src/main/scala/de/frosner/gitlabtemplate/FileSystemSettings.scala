@@ -16,13 +16,16 @@
 
 package de.frosner.gitlabtemplate
 
+import java.nio.file.{Path, Paths}
+
 import com.typesafe.config.Config
 
-case class FileSystemSettings(allowEmpty: Boolean, dryRun: Boolean) {
+case class FileSystemSettings(path: Path, publicKeysFile: String, allowEmpty: Boolean) {
 
   val flatToString: Seq[(String, String)] = Seq(
     ("allowEmpty", allowEmpty.toString),
-    ("dryRun", dryRun.toString)
+    ("path", s"$path (${path.toAbsolutePath})"),
+    ("publicKeysFile", publicKeysFile)
   )
 
 }
@@ -31,7 +34,8 @@ object FileSystemSettings {
 
   def fromConfig(config: Config): FileSystemSettings = FileSystemSettings(
     allowEmpty = config.getBoolean("createEmptyKeyFile"),
-    dryRun = config.getBoolean("dryRun")
+    path = Paths.get(config.getString("path")),
+    publicKeysFile = config.getString("publicKeysFile")
   )
 
 }
