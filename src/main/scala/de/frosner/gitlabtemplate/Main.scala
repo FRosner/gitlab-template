@@ -20,6 +20,7 @@ import java.util.concurrent._
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import cats.data.EitherT
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.StrictLogging
 import play.api.libs.json.{JsPath, JsonValidationError}
@@ -33,6 +34,9 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 import monix.execution.ExecutionModel.AlwaysAsyncExecution
 import monix.execution.{Scheduler, UncaughtExceptionReporter}
+
+import cats.data._
+import cats.implicits._
 
 object Main extends StrictLogging {
 
@@ -70,21 +74,14 @@ object Main extends StrictLogging {
       )
     scheduler.scheduleWithFixedDelay(0.seconds, conf.renderFrequency) {
       Try {
-        val futureUsers = gitlabClient.getUsers(conf.source.gitlab.onlyActiveUsers)
-        val futureSshKeys: Future[Either[Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]]] =
-          futureUsers.flatMap {
-            case Left(error)  => Future.successful(Left(error))
-            case Right(users) => gitlabClient.getSshKeys(users)
-          }
-        val filteredFutureSshKeys = futureSshKeys.map {
-          _.map {
-            _.filter {
-              case (user, keys) => keys.nonEmpty || gitlabConf.onlyActiveUsers
-            }
-          }
-        }
+        val allSshKeys = for {
+          users <- gitlabClient.getUsers(conf.source.gitlab.onlyActiveUsers)
+          userSshKeys <- gitlabClient.getSshKeys(users)
+          filteredUserSshKeys <- filterEmptyKeysAndActiveUsers(userSshKeys, gitlabConf.onlyActiveUsers)
+        } yield filteredUserSshKeys
 
-        filteredFutureSshKeys.onComplete {
+        allSshKeys.value.onComplete {
+          // TODO map instead of onComplete to avoid getting killed and also be more testable
           case Failure(error) =>
             logger.error(s"Extracting keys failed: ${error.getMessage}")
           case Success(Left(error)) =>
@@ -103,7 +100,7 @@ object Main extends StrictLogging {
               }
             }
         }
-        Await.ready(filteredFutureSshKeys, gitlabConf.timeout)
+        Await.ready(allSshKeys.value, gitlabConf.timeout)
       }.recover {
         case throwable =>
           throwable.printStackTrace()
@@ -111,6 +108,14 @@ object Main extends StrictLogging {
           throw throwable
       }
     }
+  }
+
+  def filterEmptyKeysAndActiveUsers(usersAndKeys: Seq[(User, Seq[PublicKey])], onlyActiveUsers: Boolean)
+    : EitherT[Future, Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]] = {
+    val filteredKeys = usersAndKeys.filter {
+      case (user, keys) => keys.nonEmpty || onlyActiveUsers
+    }
+    EitherT.pure[Future, Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]](filteredKeys)
   }
 
 }

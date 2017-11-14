@@ -16,6 +16,7 @@
 
 package de.frosner.gitlabtemplate
 
+import cats.data.EitherT
 import play.api.libs.json.{JsPath, JsValue, Json, JsonValidationError}
 import play.api.libs.ws.JsonBodyReadables._
 import play.api.libs.ws.StandaloneWSClient
@@ -28,20 +29,20 @@ import scala.concurrent.{ExecutionContext, Future}
 final class GitlabSource(wsClient: StandaloneWSClient, url: String, privateToken: String)(implicit ec: ExecutionContext)
     extends StrictLogging {
 
-  def getUsers(requireActive: Boolean): Future[Either[Seq[(JsPath, Seq[JsonValidationError])], Seq[User]]] = {
+  def getUsers(requireActive: Boolean): EitherT[Future, Seq[(JsPath, Seq[JsonValidationError])], Seq[User]] = {
     val activeFilter = if (requireActive) "?active=true" else ""
     val request = wsClient
       .url(s"$url/api/v4/users$activeFilter")
       .withHttpHeaders(("PRIVATE-TOKEN", privateToken))
     logger.debug(s"Requesting users: ${request.url}")
-    request.get().map { response =>
+    EitherT(request.get().map { response =>
       val body = response.body[JsValue]
       Json.fromJson[Seq[User]](body).asEither
-    }
+    })
   }
 
   def getSshKeys(
-      users: Seq[User]): Future[Either[Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]]] = {
+      users: Seq[User]): EitherT[Future, Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]] = {
     val futureUsersAndKeys =
       Future.sequence {
         users.map { user =>
@@ -57,7 +58,7 @@ final class GitlabSource(wsClient: StandaloneWSClient, url: String, privateToken
           }
         }.toList
       }
-    futureUsersAndKeys.map(_.sequenceU)
+    EitherT(futureUsersAndKeys.map(_.sequenceU))
   }
 
 }
