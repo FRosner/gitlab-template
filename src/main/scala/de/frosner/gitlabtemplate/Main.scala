@@ -68,7 +68,7 @@ object Main extends StrictLogging {
         UncaughtExceptionReporter(executorService.reportFailure),
         AlwaysAsyncExecution
       )
-    scheduler.scheduleWithFixedDelay(0.seconds, gitlabConf.pollingFrequency) {
+    scheduler.scheduleWithFixedDelay(0.seconds, conf.renderFrequency) {
       Try {
         val futureUsers = gitlabClient.getUsers(conf.source.gitlab.onlyActiveUsers)
         val futureSshKeys: Future[Either[Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]]] =
@@ -103,7 +103,7 @@ object Main extends StrictLogging {
               }
             }
         }
-        Await.ready(filteredFutureSshKeys, Duration(10, TimeUnit.SECONDS))
+        Await.ready(filteredFutureSshKeys, gitlabConf.timeout)
       }.recover {
         case throwable =>
           throwable.printStackTrace()
