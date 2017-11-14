@@ -41,7 +41,7 @@ lazy val root = (project in file("."))
     // A set of useful dependencies
     libraryDependencies ++= List(
       // Basic data structures for funtional programming
-      "org.typelevel" %% "cats" % "0.9.0",
+      "org.typelevel" %% "cats-core" % "0.9.0",
       // Enum types,
       "com.beachape" %% "enumeratum" % "1.5.11",
       "com.beachape" %% "enumeratum-play-json" % "1.5.12",
