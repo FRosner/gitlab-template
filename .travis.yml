@@ -3,6 +3,7 @@ jdk:
   - oraclejdk8
 script:
   ## This runs the template with the default parameters, and runs test within the templated app.
+  - ./scalafmt --test
   - sbt -Dfile.encoding=UTF8 -J-XX:ReservedCodeCacheSize=256M validate
 cache:
   # Cache SBT launcher and SBT dependencies

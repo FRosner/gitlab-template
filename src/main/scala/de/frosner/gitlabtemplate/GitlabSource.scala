@@ -25,8 +25,7 @@ import com.typesafe.scalalogging.StrictLogging
 
 import scala.concurrent.{ExecutionContext, Future}
 
-final class GitlabSource(wsClient: StandaloneWSClient, url: String, privateToken: String)(
-    implicit ec: ExecutionContext)
+final class GitlabSource(wsClient: StandaloneWSClient, url: String, privateToken: String)(implicit ec: ExecutionContext)
     extends StrictLogging {
 
   def getUsers(requireActive: Boolean): Future[Either[Seq[(JsPath, Seq[JsonValidationError])], Seq[User]]] = {

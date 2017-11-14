@@ -7,7 +7,6 @@ val validateCommands = List(
   "clean",
   "compile",
   "test:compile",
-  "scalafmtTest",
   "test",
   "doc"
 )

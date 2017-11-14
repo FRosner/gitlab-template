@@ -1,6 +1,3 @@
-// Code formatting
-addSbtPlugin("com.geirsson" % "sbt-scalafmt" % "0.5.5")
-
 // Copyright headers
 addSbtPlugin("de.heikoseeberger" % "sbt-header" % "1.7.0")
 
