@@ -16,6 +16,7 @@
 
 package de.frosner.gitlabtemplate
 
+import java.io
 import java.util.concurrent._
 
 import akka.actor.ActorSystem
@@ -34,11 +35,19 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 import monix.execution.ExecutionModel.AlwaysAsyncExecution
 import monix.execution.{Scheduler, UncaughtExceptionReporter}
-
 import cats.data._
 import cats.implicits._
+import cats.kernel.Semigroup
+import de.frosner.gitlabtemplate.Error.GitlabError
+import de.frosner.gitlabtemplate.TechnicalUsersKeys.TechnicalUser
+
+import scala.collection.generic.GenericTraversableTemplate
+import scala.collection.{GenIterable, GenIterableLike, GenTraversable, IterableLike}
 
 object Main extends StrictLogging {
+
+  type PublicKeyType = String
+  type Username = String
 
   def main(args: Array[String]): Unit = {
     val conf = loadConfigOrThrow[GitlabTemplateConfig](ConfigFactory.load().getConfig("gitlab-template"))
@@ -61,6 +70,8 @@ object Main extends StrictLogging {
     val gitlabClient =
       new GitlabSource(wsClient, gitlabConf.url, gitlabConf.privateToken)
 
+    val technicalUsersKeysSource = new TechnicalUsersKeysSource(wsClient, conf.source.technicalUsersKeys.url)
+
     val filesystemSink =
       new FileSystemSink(filesystemConf.path, filesystemConf.publicKeysFile, filesystemConf.createEmptyKeyFile)
 
@@ -74,11 +85,14 @@ object Main extends StrictLogging {
       )
     scheduler.scheduleWithFixedDelay(0.seconds, conf.renderFrequency) {
       Try {
+        // TODO allow to disable/enable both sources individually
         val allSshKeys = for {
           users <- gitlabClient.getUsers(conf.source.gitlab.onlyActiveUsers)
           userSshKeys <- gitlabClient.getSshKeys(users)
-          filteredUserSshKeys <- filterEmptyKeysAndActiveUsers(userSshKeys, gitlabConf.onlyActiveUsers)
-        } yield filteredUserSshKeys
+          filteredUserSshKeys <- filterEmptyKeysAndActiveUsers(userSshKeys, filesystemConf.createEmptyKeyFile)
+          technicalUserKeys <- technicalUsersKeysSource.get
+          mergedKeys <- mergeTechnicalWithGitlabUsers(filteredUserSshKeys, technicalUserKeys)
+        } yield mergedKeys
 
         allSshKeys.value.onComplete {
           // TODO map instead of onComplete to avoid getting killed and also be more testable
@@ -110,12 +124,34 @@ object Main extends StrictLogging {
     }
   }
 
-  def filterEmptyKeysAndActiveUsers(usersAndKeys: Seq[(User, Seq[PublicKey])], onlyActiveUsers: Boolean)
-    : EitherT[Future, Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]] = {
+  def filterEmptyKeysAndActiveUsers(
+      usersAndKeys: Map[Username, Set[PublicKeyType]],
+      onlyActiveUsers: Boolean): EitherT[Future, Error, Map[Username, Set[PublicKeyType]]] = {
     val filteredKeys = usersAndKeys.filter {
       case (user, keys) => keys.nonEmpty || onlyActiveUsers
     }
-    EitherT.pure[Future, Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]](filteredKeys)
+    EitherT.pure(filteredKeys)
+  }
+
+  def mergeTechnicalWithGitlabUsers(
+      gitlabKeys: Map[Username, Set[PublicKeyType]],
+      technicalUsersAndKeys: TechnicalUsersKeys): EitherT[Future, Error, Map[TechnicalUser, Set[PublicKeyType]]] = {
+    val authorizedUsersKeys = technicalUsersAndKeys.authorizedUsers
+      .map {
+        case (technicalUser, authorizedUsers) =>
+          (technicalUser, authorizedUsers.flatMap { username =>
+            val userKeys = gitlabKeys.get(username)
+            if (userKeys.isEmpty) {
+              logger.warn(
+                s"User '$username' is supposed to have its authorized keys put to technical user " +
+                  s"'$technicalUser' but '$username' does not exist on Gitlab.")
+            }
+            userKeys
+          }.flatten)
+      }
+    val technicalUserKeys = Semigroup.combine(authorizedUsersKeys, technicalUsersAndKeys.authorizedKeys)
+    val allKeys = Semigroup.combine(technicalUserKeys, gitlabKeys)
+    EitherT.pure(allKeys)
   }
 
 }

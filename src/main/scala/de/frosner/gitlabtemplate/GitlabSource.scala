@@ -23,13 +23,16 @@ import play.api.libs.ws.StandaloneWSClient
 import cats.instances.all._
 import cats.syntax.all._
 import com.typesafe.scalalogging.StrictLogging
+import de.frosner.gitlabtemplate.Error.GitlabError
+import GitlabUser.format
+import de.frosner.gitlabtemplate.Main.{PublicKeyType, Username}
 
 import scala.concurrent.{ExecutionContext, Future}
 
 final class GitlabSource(wsClient: StandaloneWSClient, url: String, privateToken: String)(implicit ec: ExecutionContext)
     extends StrictLogging {
 
-  def getUsers(requireActive: Boolean): EitherT[Future, Seq[(JsPath, Seq[JsonValidationError])], Seq[User]] = {
+  def getUsers(requireActive: Boolean): EitherT[Future, Error, Set[GitlabUser]] = {
     val activeFilter = if (requireActive) "?active=true" else ""
     val request = wsClient
       .url(s"$url/api/v4/users$activeFilter")
@@ -37,12 +40,11 @@ final class GitlabSource(wsClient: StandaloneWSClient, url: String, privateToken
     logger.debug(s"Requesting users: ${request.url}")
     EitherT(request.get().map { response =>
       val body = response.body[JsValue]
-      Json.fromJson[Seq[User]](body).asEither
-    })
+      Json.fromJson[Set[GitlabUser]](body).asEither
+    }).leftMap(GitlabError)
   }
 
-  def getSshKeys(
-      users: Seq[User]): EitherT[Future, Seq[(JsPath, Seq[JsonValidationError])], Seq[(User, Seq[PublicKey])]] = {
+  def getSshKeys(users: Set[GitlabUser]): EitherT[Future, Error, Map[Username, Set[PublicKeyType]]] = {
     val futureUsersAndKeys =
       Future.sequence {
         users.map { user =>
@@ -52,13 +54,13 @@ final class GitlabSource(wsClient: StandaloneWSClient, url: String, privateToken
           logger.debug(s"Requesting public keys for ${user.username}: ${request.url}")
           request.get().map { response =>
             Json
-              .fromJson[Seq[PublicKey]](response.body[JsValue])
+              .fromJson[Set[PublicKey]](response.body[JsValue])
               .asEither
-              .map(keys => (user, keys))
+              .map(keys => (user.username, keys.map(_.key)))
           }
         }.toList
       }
-    EitherT(futureUsersAndKeys.map(_.sequenceU))
+    EitherT(futureUsersAndKeys.map(_.sequenceU)).map(_.toMap).leftMap(GitlabError)
   }
 
 }

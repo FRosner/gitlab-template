@@ -25,7 +25,9 @@ case class GitlabTemplateConfig(source: SourceConfig,
                                 dryRun: Boolean,
                                 renderFrequency: FiniteDuration)
 
-case class SourceConfig(gitlab: GitlabConfig)
+case class SourceConfig(gitlab: GitlabConfig, technicalUsersKeys: TechnicalUsersKeysConfig)
+
+case class TechnicalUsersKeysConfig(url: String)
 
 case class SinkConfig(filesystem: FilesystemConfig)
 

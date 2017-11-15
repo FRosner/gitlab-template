@@ -16,9 +16,10 @@
 
 package de.frosner.gitlabtemplate
 
+import de.frosner.gitlabtemplate.Main.PublicKeyType
 import play.api.libs.json.{Format, Json}
 
-final case class PublicKey(key: String)
+final case class PublicKey(key: PublicKeyType)
 
 object PublicKey {
 
