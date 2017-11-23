@@ -68,8 +68,8 @@ object Main extends StrictLogging {
         AlwaysAsyncExecution
       )
     scheduler.scheduleWithFixedDelay(0.seconds, conf.renderFrequency) {
+      // TODO allow to disable/enable both sources individually
       Try {
-        // TODO allow to disable/enable both sources individually
         val allSshKeys = for {
           users <- gitlabClient.getUsers(conf.source.gitlab.onlyActiveUsers)
           userSshKeys <- gitlabClient.getSshKeys(users)
@@ -78,13 +78,8 @@ object Main extends StrictLogging {
           mergedKeys <- mergeTechnicalWithGitlabUsers(filteredUserSshKeys, technicalUserKeys)
         } yield mergedKeys
 
-        allSshKeys.value.onComplete {
-          // TODO map instead of onComplete to avoid getting killed and also be more testable
-          case Failure(error) =>
-            logger.error(s"Extracting keys failed: ${error.getMessage}")
-          case Success(Left(error)) =>
-            throw new Exception(s"Cannot parse Gitlab response: $error")
-          case Success(Right(usersAndKeys)) =>
+        val persistedKeys = allSshKeys
+          .map { usersAndKeys =>
             if (conf.dryRun) {
               usersAndKeys.foreach {
                 case (user, keys) =>
@@ -97,17 +92,21 @@ object Main extends StrictLogging {
                 case Failure(exception) => throw exception
               }
             }
+          }
+          .recover {
+            case error => throw new Exception(s"Cannot parse Gitlab response: $error")
+          }
+        persistedKeys.value.failed.foreach { error =>
+          logger.error(s"Extracting keys failed: ${error.getMessage}")
+          throw error
         }
-        Await.ready(allSshKeys.value, gitlabConf.timeout)
-      }.recover {
-        case throwable =>
-          throwable.printStackTrace()
-          System.exit(1)
-          throw throwable
-      }
+        Await.ready(persistedKeys.value, conf.timeout)
+      }.failed
+        .foreach(_ => System.exit(1)) // TODO proper error handling, catching the error once and handle it once in the end
     }
   }
 
+  // TODO filter only inactive users, not empty keys as this will be handled elsewhere (in the sink)
   def filterEmptyKeysAndActiveUsers(
       usersAndKeys: Map[Username, Set[PublicKeyType]],
       onlyActiveUsers: Boolean): EitherT[Future, Error, Map[Username, Set[PublicKeyType]]] = {
