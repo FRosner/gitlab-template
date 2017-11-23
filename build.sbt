@@ -1,5 +1,3 @@
-import de.heikoseeberger.sbtheader.license.Apache2_0
-import de.heikoseeberger.sbtheader.CommentStyleMapping._
 import ReleaseTransformations._
 
 // Commands to run on Travis CI
@@ -21,8 +19,6 @@ lazy val root = (project in file("."))
     description := "Rendering your authorized_keys files based on Gitlab since 2017!",
     homepage := Some(url(s"https://github.com/FRosner/gitlab-template")),
     licenses += "Apache 2" -> url("https://www.apache.org/licenses/LICENSE-2.0"),
-    // License headers
-    headers := createFrom(Apache2_0, "2017", "Frank Rosner"),
     // Release settings: Publish maven style, sign our releases, and define the release steps
     publishMavenStyle := true,
     publishTo := {
@@ -128,4 +124,3 @@ lazy val root = (project in file("."))
       )
     )
   )
-  .enablePlugins(AutomateHeaderPlugin)
