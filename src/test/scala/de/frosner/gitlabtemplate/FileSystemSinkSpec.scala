@@ -5,6 +5,7 @@ import java.nio.file.Files
 import org.scalatest._
 
 import scala.io.Source
+import scala.util.{Failure, Success}
 
 class FileSystemSinkSpec extends FlatSpec with Matchers {
 
@@ -16,7 +17,20 @@ class FileSystemSinkSpec extends FlatSpec with Matchers {
     "user3" -> Set.empty[String]
   )
 
-  "A filesystem sink" should "create the folders for each users if they don't exist" in {
+  "A filesystem sink" should "return the number of keys and users written" in {
+    val tmpDir = Files.createTempDirectory(testName)
+    val sink = new FileSystemSink(tmpDir, "authorized_keys", true)
+    sink.write(usersAndKeys) === Success((3, 3))
+  }
+
+  it should "return a failure if the keys cannot be written" in {
+    val tmpDir = Files.createTempDirectory(testName)
+    val sink = new FileSystemSink(tmpDir, "authorized_keys", true)
+    tmpDir.toFile.delete()
+    sink.write(usersAndKeys) shouldBe a[Failure[_]]
+  }
+
+  it should "create the folders for each users if they don't exist" in {
     val tmpDir = Files.createTempDirectory(testName)
     val sink = new FileSystemSink(tmpDir, "authorized_keys", true)
     sink.write(usersAndKeys)
