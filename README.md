@@ -1,5 +1,7 @@
 # Gitlab Template
 
+[![Build Status](https://travis-ci.org/FRosner/gitlab-template.svg?branch=master)](https://travis-ci.org/FRosner/gitlab-template)
+
 ## Usage
 
 ## Configuration
