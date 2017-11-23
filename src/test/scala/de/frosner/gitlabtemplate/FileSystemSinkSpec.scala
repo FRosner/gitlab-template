@@ -42,4 +42,20 @@ class FileSystemSinkSpec extends FlatSpec with Matchers {
     writtenUsersAndKeys === usersAndKeys
   }
 
+  it should "delete user folders that are longer present" in {
+    val tmpDir = Files.createTempDirectory(testName)
+    val sink = new FileSystemSink(tmpDir, "authorized_keys", true)
+    sink.write(usersAndKeys)
+    sink.write(usersAndKeys - "user1")
+    tmpDir.toFile.list() shouldBe Array("user2", "user3")
+  }
+
+  it should "delete user folders that are now empty" in {
+    val tmpDir = Files.createTempDirectory(testName)
+    val sink = new FileSystemSink(tmpDir, "authorized_keys", false)
+    sink.write(usersAndKeys)
+    sink.write(usersAndKeys.updated("user1", Set.empty[String]))
+    tmpDir.toFile.list() shouldBe Array("user2")
+  }
+
 }
