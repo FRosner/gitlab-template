@@ -2,7 +2,7 @@ package de.frosner.gitlabtemplate
 
 import java.io.File
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path}
+import java.nio.file.{Files, Path, StandardCopyOption}
 
 import com.typesafe.scalalogging.StrictLogging
 import de.frosner.gitlabtemplate.Main.{PublicKeyType, Username}
@@ -27,15 +27,18 @@ class FileSystemSink(rootDirectory: Path, publicKeysFileName: String, allowEmpty
       val numKeysWritten = nonEmptyUsersAndKeys.map {
         case (user, keys) =>
           val userDir = rootDirectory.resolve(user)
+          val publicKeysTmpFile = Files.createTempFile(user, publicKeysFileName)
           val publicKeysFile = userDir.resolve(publicKeysFileName)
           if (userDir.toFile.isDirectory) {
-            logger.debug(s"User directory '${userDir.toAbsolutePath}' already exists")
+            logger.trace(s"User directory '${userDir.toAbsolutePath}' already exists")
           } else {
-            logger.debug(s"Creating user directory '${userDir.toAbsolutePath}'")
+            logger.trace(s"Creating user directory '${userDir.toAbsolutePath}'")
           }
           Files.createDirectories(userDir)
+          logger.trace(s"Writing public keys to '${publicKeysTmpFile.toAbsolutePath}'")
+          Files.write(publicKeysTmpFile, keys.mkString("\n").getBytes(StandardCharsets.UTF_8))
           logger.debug(s"Writing public keys to '${publicKeysFile.toAbsolutePath}'")
-          Files.write(publicKeysFile, keys.mkString("\n").getBytes(StandardCharsets.UTF_8))
+          Files.move(publicKeysTmpFile, publicKeysFile, StandardCopyOption.ATOMIC_MOVE)
           keys.size
       }.sum
       (nonEmptyUsersAndKeys.size, numKeysWritten)
