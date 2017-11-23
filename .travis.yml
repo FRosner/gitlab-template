@@ -5,6 +5,7 @@ script:
   ## This runs the template with the default parameters, and runs test within the templated app.
   - ./scalafmt --test
   - sbt -Dfile.encoding=UTF8 -J-XX:ReservedCodeCacheSize=256M validate
+  - bash <(curl -s https://codecov.io/bash)
 cache:
   # Cache SBT launcher and SBT dependencies
   - $HOME/.sbt/0.13/dependency
