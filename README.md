@@ -1,6 +1,7 @@
 # Gitlab Template
 
 [![Build Status](https://travis-ci.org/FRosner/gitlab-template.svg?branch=master)](https://travis-ci.org/FRosner/gitlab-template)
+[![codecov](https://codecov.io/gh/FRosner/gitlab-template/branch/master/graph/badge.svg)](https://codecov.io/gh/FRosner/gitlab-template)
 
 ## Usage
 
