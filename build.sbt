@@ -44,9 +44,9 @@ lazy val root = (project in file("."))
       "com.beachape" %% "enumeratum" % "1.5.11",
       "com.beachape" %% "enumeratum-play-json" % "1.5.12",
       // HTTP client
-      "com.typesafe.play" %% "play-ahc-ws-standalone" % "1.0.2",
+      "com.typesafe.play" %% "play-ahc-ws-standalone" % "1.1.3",
       // HTTP client JSON support
-      "com.typesafe.play" %% "play-ws-standalone-json" % "1.0.2",
+      "com.typesafe.play" %% "play-ws-standalone-json" % "1.1.3",
       // Nicer syntax for type classes
       "com.github.mpilquist" %% "simulacrum" % "0.10.0",
       // Logging
