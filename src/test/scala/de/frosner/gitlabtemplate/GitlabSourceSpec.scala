@@ -10,7 +10,7 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
 
   "A gitlab source" should "list the users" in {
     withServerAndClient {
-      path("/api/v4/users") {
+      path("api" / "v4" / "users") {
         get {
           complete(s"""
                |[
@@ -35,7 +35,7 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
 
   it should "fail if it cannot parse the response" in {
     withServerAndClient {
-      path("/api/v4/users") {
+      path("api" / "v4" / "users") {
         get {
           complete(s"""
                       |[

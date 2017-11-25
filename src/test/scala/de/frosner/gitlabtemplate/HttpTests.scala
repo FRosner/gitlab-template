@@ -18,7 +18,7 @@ import scala.util.Try
 trait HttpTests {
 
   def withServerAndClient(route: Route)(
-      assertionGen: ExecutionContext => (StandaloneWSClient, String) => Future[Assertion]): Future[Assertion] = {
+      assertionGen: ExecutionContext => (StandaloneWSClient, String) => Future[Assertion]): Assertion = {
     implicit val system = ActorSystem(this.getClass.getSimpleName + UUID.randomUUID().toString)
     implicit val materializer = ActorMaterializer()
     implicit val executionContext = system.dispatcher
@@ -39,7 +39,7 @@ trait HttpTests {
       .flatMap(_.unbind())
       .onComplete(_ => system.terminate())
 
-    assertion
+    Await.result(assertion, 5.seconds)
   }
 
 }
