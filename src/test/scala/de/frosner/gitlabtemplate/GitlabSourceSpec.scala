@@ -4,11 +4,12 @@ import java.net.UnknownHostException
 
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.directives.RouteDirectives
+import com.fasterxml.jackson.core.JsonParseException
 import org.scalatest.{FlatSpec, Matchers}
 
 class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
 
-  "A gitlab source" should "list the users" in {
+  "Getting users through a Gitlab source" should "work" in {
     withServerAndClient {
       path("api" / "v4" / "users") {
         get {
@@ -23,12 +24,14 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
     } { implicit ec =>
       {
         case (wsClient, address) =>
-          val source = new GitlabSource(wsClient, address, "token")
           val expected = Set(
             GitlabUser(1, "usr1"),
             GitlabUser(2, "usr2")
           )
-          source.getUsers(false).value.map(_ shouldBe Right(expected))
+          new GitlabSource(wsClient, address, "token")
+            .getUsers(false)
+            .value
+            .map(_ shouldBe Right(expected))
       }
     }
   }
@@ -48,8 +51,10 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
     } { implicit ec =>
       {
         case (wsClient, address) =>
-          val source = new GitlabSource(wsClient, address, "token")
-          source.getUsers(false).value.map(_ shouldBe a[Left[_, _]])
+          new GitlabSource(wsClient, address, "token")
+            .getUsers(false)
+            .value
+            .map(_ shouldBe a[Left[_, _]])
       }
     }
   }
@@ -58,8 +63,72 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
     withServerAndClient { RouteDirectives.reject } { implicit ec =>
       {
         case (wsClient, address) =>
-          val source = new GitlabSource(wsClient, "http://dsafdsgdfsfdsfdsf", "token")
-          source.getUsers(false).value.failed.map(_ shouldBe a[UnknownHostException])
+          new GitlabSource(wsClient, "http://dsafdsgdfsfdsfdsf", "token")
+            .getUsers(false)
+            .value
+            .failed
+            .map(_ shouldBe a[UnknownHostException])
+      }
+    }
+  }
+
+  "Getting SSH keys through a Gitlab source" should "work" in {
+    withServerAndClient {
+      path("api" / "v4" / "users" / "1" / "keys") {
+        get {
+          complete("""[ { "key": "key1" }, { "key": "key2" } ]""")
+        }
+      } ~ path("api" / "v4" / "users" / "2" / "keys") {
+        get {
+          complete("""[ { "key": "key3" } ]""")
+        }
+      }
+    } { implicit ec =>
+      {
+        case (wsClient, address) =>
+          val users = Set(
+            GitlabUser(1, "usr1"),
+            GitlabUser(2, "usr2")
+          )
+          val expected = Map(
+            "usr1" -> Set("key1", "key2"),
+            "usr2" -> Set("key3")
+          )
+          new GitlabSource(wsClient, address, "token")
+            .getSshKeys(users)
+            .value
+            .map(_ shouldBe Right(expected))
+      }
+    }
+  }
+
+  it should "fail if the keys cannot be parsed" in {
+    withServerAndClient {
+      path("api" / "v4" / "users" / "1" / "keys") {
+        get {
+          complete("""[ { "foo": "bar" } ]""")
+        }
+      }
+    } { implicit ec =>
+      {
+        case (wsClient, address) =>
+          new GitlabSource(wsClient, address, "token")
+            .getSshKeys(Set(GitlabUser(1, "usr1")))
+            .value
+            .map(_ shouldBe a[Left[_, _]])
+      }
+    }
+  }
+
+  it should "fail if the keys endpoint does not exist" in {
+    withServerAndClient { RouteDirectives.reject } { implicit ec =>
+      {
+        case (wsClient, address) =>
+          new GitlabSource(wsClient, address, "token")
+            .getSshKeys(Set(GitlabUser(1, "usr1")))
+            .value
+            .failed
+            .map(_ shouldBe a[JsonParseException])
       }
     }
   }
