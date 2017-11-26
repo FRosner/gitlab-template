@@ -11,7 +11,7 @@ import play.api.libs.ws.StandaloneWSClient
 
 import scala.concurrent.{ExecutionContext, Future}
 
-final class TechnicalUsersKeysSource(wsClient: StandaloneWSClient, url: String)(implicit ec: ExecutionContext)
+class TechnicalUsersKeysSource(wsClient: StandaloneWSClient, url: String)(implicit ec: ExecutionContext)
     extends StrictLogging {
 
   def get: EitherT[Future, Error, TechnicalUsersKeys] = {

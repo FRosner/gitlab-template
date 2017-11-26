@@ -60,6 +60,8 @@ lazy val root = (project in file("."))
       "org.scalatest" %% "scalatest" % "3.0.1" % "it,test",
       // Property testing
       "org.scalacheck" %% "scalacheck" % "1.13.4" % "it,test",
+      // Mocking
+      "org.mockito" % "mockito-core" % "2.7.19" % Test,
       // Config
       "com.github.pureconfig" %% "pureconfig" % "0.8.0",
       // Asynchronous programming

@@ -29,11 +29,12 @@ import de.frosner.gitlabtemplate.Main.{PublicKeyType, Username}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-final class GitlabSource(wsClient: StandaloneWSClient, url: String, privateToken: String)(implicit ec: ExecutionContext)
+class GitlabSource(wsClient: StandaloneWSClient, url: String, privateToken: String, onlyActiveUsers: Boolean)(
+    implicit ec: ExecutionContext)
     extends StrictLogging {
 
-  def getUsers(requireActive: Boolean): EitherT[Future, Error, Set[GitlabUser]] = {
-    val activeFilter = if (requireActive) "?active=true" else ""
+  def getUsers: EitherT[Future, Error, Set[GitlabUser]] = {
+    val activeFilter = if (onlyActiveUsers) "?active=true" else ""
     val request = wsClient
       .url(s"$url/api/v4/users$activeFilter")
       .withHttpHeaders(("PRIVATE-TOKEN", privateToken))
