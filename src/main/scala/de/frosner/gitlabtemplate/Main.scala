@@ -6,13 +6,12 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.StrictLogging
-import monix.execution.ExecutionModel.AlwaysAsyncExecution
-import monix.execution.{Scheduler, UncaughtExceptionReporter}
 import play.api.libs.ws.ahc._
 import pureconfig._
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.util.{Failure, Try}
 
 object Main extends StrictLogging {
 
@@ -21,49 +20,54 @@ object Main extends StrictLogging {
 
   def main(args: Array[String]): Unit = {
     val conf = loadConfigOrThrow[GitlabTemplateConfig](ConfigFactory.load().getConfig("gitlab-template"))
-    val gitlabConf = conf.source.gitlab
-    val filesystemConf = conf.sink.filesystem
 
     implicit val system = ActorSystem()
-    system.registerOnTermination {
-      System.exit(0)
-    }
     implicit val materializer = ActorMaterializer()
-
-    val wsClient = StandaloneAhcWSClient()
+    implicit val executionContext = system.dispatcher
 
     sys.addShutdownHook {
       system.terminate()
-      wsClient.close()
     }
 
-    val gitlabClient =
-      new GitlabSource(wsClient, gitlabConf.url, gitlabConf.privateToken, gitlabConf.onlyActiveUsers)
-
-    val technicalUsersKeysSource = new TechnicalUsersKeysSource(wsClient, conf.source.technicalUsersKeys.url)
-
-    val filesystemSink =
-      new FileSystemSink(filesystemConf.path, filesystemConf.publicKeysFile, filesystemConf.createEmptyKeyFile)
-
-    val pipeline = new KeyPipeline(gitlabClient, technicalUsersKeysSource, filesystemSink, conf.dryRun)
-
-    val executorService = scala.concurrent.ExecutionContext.Implicits.global
-    val scheduler =
-      Scheduler(
-        Executors.newSingleThreadScheduledExecutor(),
-        executorService,
-        UncaughtExceptionReporter(executorService.reportFailure),
-        AlwaysAsyncExecution
-      )
-    scheduler.scheduleWithFixedDelay(0.seconds, conf.renderFrequency) {
-      pipeline
-        .generateKeys(conf.timeout)
-        .failed
-        .foreach { error =>
-          logger.error(s"Key generation failed: $error")
-          System.exit(1)
-        }
+    run(conf) match {
+      case Failure(throwable) =>
+        throwable.printStackTrace()
+        System.exit(1)
+      case _ =>
+        System.exit(0)
     }
+  }
+
+  def run(conf: GitlabTemplateConfig)(implicit actorMaterializer: ActorMaterializer,
+                                      executionContext: ExecutionContext): Try[Unit] = {
+    val wsClient = StandaloneAhcWSClient()
+    val result = Try {
+      val gitlabConf = conf.source.gitlab
+      val filesystemConf = conf.sink.filesystem
+
+      val gitlabClient =
+        new GitlabSource(wsClient, gitlabConf.url, gitlabConf.privateToken, gitlabConf.onlyActiveUsers)
+
+      val technicalUsersKeysSource = new TechnicalUsersKeysSource(wsClient, conf.source.technicalUsersKeys.url)
+
+      val filesystemSink =
+        new FileSystemSink(filesystemConf.path, filesystemConf.publicKeysFile, filesystemConf.createEmptyKeyFile)
+
+      val pipeline = new KeyPipeline(gitlabClient, technicalUsersKeysSource, filesystemSink, conf.dryRun)
+
+      while (true) {
+        pipeline
+          .generateKeys(conf.timeout)
+          .failed
+          .foreach { error =>
+            logger.error(error.toString)
+            throw error
+          }
+        Thread.sleep(conf.renderFrequency.toMillis)
+      }
+    }
+    result.failed.foreach(_ => wsClient.close())
+    result
   }
 
 }
