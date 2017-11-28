@@ -59,10 +59,10 @@ class KeyPipeline(val gitlabSource: GitlabSource,
         case (technicalUser, authorizedUsers) =>
           (technicalUser, authorizedUsers.flatMap { username =>
             val userKeys = gitlabKeys.get(username)
-            if (userKeys.isEmpty) {
+            if (userKeys.getOrElse(Set.empty).isEmpty) {
               logger.warn(
                 s"User '$username' is supposed to have its authorized keys put to technical user " +
-                  s"'$technicalUser' but '$username' does not exist on Gitlab.")
+                  s"'$technicalUser' but did not provide any keys on Gitlab, is inactive, or doesn't exist.")
             }
             userKeys
           }.flatten)
