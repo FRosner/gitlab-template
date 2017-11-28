@@ -59,7 +59,10 @@ object Main extends StrictLogging {
       pipeline
         .generateKeys(conf.timeout)
         .failed
-        .foreach(_ => System.exit(1)) // TODO proper error handling, catching the error once and handle it once in the end
+        .foreach { error =>
+          logger.error(s"Key generation failed: $error")
+          System.exit(1)
+        }
     }
   }
 

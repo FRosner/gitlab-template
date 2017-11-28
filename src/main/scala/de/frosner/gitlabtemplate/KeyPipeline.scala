@@ -4,6 +4,7 @@ import cats.data._
 import cats.implicits._
 import cats.kernel.Semigroup
 import com.typesafe.scalalogging.StrictLogging
+import de.frosner.gitlabtemplate.Error.{FilesystemError, GitlabError}
 import de.frosner.gitlabtemplate.Main.{PublicKeyType, Username}
 
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -19,36 +20,22 @@ class KeyPipeline(val gitlabSource: GitlabSource,
   // TODO allow to disable/enable both sources individually
   def generateKeys(timeout: FiniteDuration)(implicit ec: ExecutionContext): Try[Unit] =
     Try {
-      val allSshKeys = for {
+      val result = for {
         users <- gitlabSource.getUsers
         userSshKeys <- gitlabSource.getSshKeys(users)
         technicalUserKeys <- technicalUsersKeysSource.get
         mergedKeys <- mergeTechnicalWithGitlabUsers(userSshKeys, technicalUserKeys)
-      } yield mergedKeys
+        persistedKeys <- persistKeys(mergedKeys, dryRun)
+      } yield persistedKeys
 
-      val persistedKeys = allSshKeys
-        .map { usersAndKeys =>
-          if (dryRun) {
-            usersAndKeys.foreach {
-              case (user, keys) =>
-                keys.foreach(key => logger.info(s"$user\t $key"))
-            }
-          } else {
-            fileSystemSink.write(usersAndKeys) match {
-              case Success((numUsers, numKeys)) =>
-                logger.debug(s"Successfully persisted a total of $numKeys key(s) for $numUsers user(s)")
-              case Failure(exception) => throw exception
-            }
+      Try(Await.result(result.value, timeout)) match {
+        case Success(result) =>
+          result match {
+            case Left(error)         => throw error.toException
+            case Right(usersAndKeys) => ()
           }
-        }
-        .recover {
-          case error => throw new Exception(s"Cannot parse Gitlab response: $error")
-        }
-      persistedKeys.value.failed.foreach { error =>
-        logger.error(s"Extracting keys failed: ${error.getMessage}")
-        throw error
+        case Failure(throwable) => throw new GitlabTemplateException(s"Failed to extract keys: $throwable")
       }
-      Await.result(persistedKeys.value, timeout) // TODO check for failing future here
     }
 
   private def mergeTechnicalWithGitlabUsers(
@@ -71,5 +58,19 @@ class KeyPipeline(val gitlabSource: GitlabSource,
     val allKeys = Semigroup.combine(technicalUserKeys, gitlabKeys)
     EitherT.pure(allKeys)
   }
+
+  private def persistKeys(mergedKeys: Map[Username, Set[PublicKeyType]],
+                          dryRun: Boolean): EitherT[Future, Error, Map[Username, Set[PublicKeyType]]] =
+    if (dryRun) {
+      mergedKeys.foreach {
+        case (user, keys) =>
+          keys.foreach(key => logger.info(s"$user\t $key"))
+      }
+      EitherT.pure(mergedKeys)
+    } else {
+      EitherT
+        .fromEither[Future](fileSystemSink.write(mergedKeys).toEither.map(_ => mergedKeys))
+        .leftMap(FilesystemError)
+    }
 
 }

@@ -40,7 +40,7 @@ class KeyPipelineSpec extends FlatSpec with Matchers with MockitoSugar {
         Map(
           "usr1" -> Set("key1", "key2"),
           "tusr1" -> Set("key1", "key2", "key3")
-        ))).thenReturn(Success((2, 5)))
+        ))).thenReturn(Success(()))
 
     val keyPipeline = new KeyPipeline(gitlabSource, technicalUsersKeysSource, fileSystemSink, false)
     keyPipeline.generateKeys(5.seconds) shouldBe Success(())
@@ -93,7 +93,7 @@ class KeyPipelineSpec extends FlatSpec with Matchers with MockitoSugar {
       fileSystemSink.write(
         Map(
           "tusr1" -> Set("key3")
-        ))).thenReturn(Success((1, 1)))
+        ))).thenReturn(Success(()))
     val result = keyPipeline.generateKeys(5.seconds)
     result shouldBe Success(())
   }
@@ -122,7 +122,7 @@ class KeyPipelineSpec extends FlatSpec with Matchers with MockitoSugar {
         Map(
           "usr1" -> Set.empty[PublicKeyType],
           "tusr1" -> Set("key3")
-        ))).thenReturn(Success((2, 1)))
+        ))).thenReturn(Success(()))
     val result = keyPipeline.generateKeys(5.seconds)
     result shouldBe Success(())
   }

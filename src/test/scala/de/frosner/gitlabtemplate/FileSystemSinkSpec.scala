@@ -20,7 +20,7 @@ class FileSystemSinkSpec extends FlatSpec with Matchers {
   "A filesystem sink" should "return the number of keys and users written" in {
     val tmpDir = Files.createTempDirectory(testName)
     val sink = new FileSystemSink(tmpDir, "authorized_keys", true)
-    sink.write(usersAndKeys) === Success((3, 3))
+    sink.write(usersAndKeys) === Success(())
   }
 
   it should "return a failure if the keys cannot be written" in {

@@ -11,7 +11,7 @@ import scala.util.Try
 
 class FileSystemSink(rootDirectory: Path, publicKeysFileName: String, allowEmpty: Boolean) extends StrictLogging {
 
-  def write(usersAndKeys: Map[Username, Set[PublicKeyType]]): Try[(Int, Int)] = synchronized {
+  def write(usersAndKeys: Map[Username, Set[PublicKeyType]]): Try[Unit] = synchronized {
     Try {
       val presentUserDirectories = rootDirectory.toFile.listFiles().filter(_.isDirectory).map(_.getName).toSet
       val nonEmptyUsersAndKeys = usersAndKeys.filter {
@@ -41,6 +41,7 @@ class FileSystemSink(rootDirectory: Path, publicKeysFileName: String, allowEmpty
           Files.move(publicKeysTmpFile, publicKeysFile, StandardCopyOption.ATOMIC_MOVE)
           keys.size
       }.sum
+      logger.debug(s"Successfully persisted a total of ${nonEmptyUsersAndKeys.size} key(s) for $numKeysWritten user(s)")
       (nonEmptyUsersAndKeys.size, numKeysWritten)
     }
   }
