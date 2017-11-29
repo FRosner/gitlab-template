@@ -118,6 +118,7 @@ lazy val root = (project in file("."))
           pushChanges,
           releaseStepCommand("sonatypeRelease")
         ),
+        test in assembly := {},
         // Scala versions we build for
         scalaVersion := "2.12.1",
         // Build settings
