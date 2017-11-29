@@ -79,13 +79,16 @@ lazy val root = (project in file("."))
       }.volume("/ssh-keys")
     },
     imageNames in docker := Seq(
-      ImageName(s"${organization.value}/${name.value}:latest"),
+      Some((version in Compile).value),
+      Option(System.getenv("TRAVIS_COMMIT"))
+        .map(_.substring(0, 8))
+    ).filter(_.isDefined).map { tag =>
       ImageName(
         namespace = Some(organization.value),
         repository = name.value,
-        tag = Option(System.getenv("TRAVIS_COMMIT"))
+        tag = tag
       )
-    ),
+    },
     // Build settings for all projects in this build
     inThisBuild(
       List(
