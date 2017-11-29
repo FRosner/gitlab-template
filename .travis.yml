@@ -1,17 +1,32 @@
 language: scala
+
+sudo: required
+
+services:
+  - docker
+
 jdk:
   - oraclejdk8
-script:
-  ## This runs the template with the default parameters, and runs test within the templated app.
-  - ./scalafmt --test
-  - sbt -Dfile.encoding=UTF8 -J-XX:ReservedCodeCacheSize=256M validate
-  - bash <(curl -s https://codecov.io/bash)
+
+jobs:
+  include:
+  - stage: test
+    script:
+      - ./scalafmt --test
+      - sbt -Dfile.encoding=UTF8 -J-XX:ReservedCodeCacheSize=256M validate
+      - bash <(curl -s https://codecov.io/bash)
+  - stage: docker
+    script:
+      - docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
+      - sbt docker dockerPush
+
 cache:
   # Cache SBT launcher and SBT dependencies
   - $HOME/.sbt/0.13/dependency
   - $HOME/.sbt/boot/scala*
   - $HOME/.sbt/launchers
   - $HOME/.ivy2/cache
+
 before_cache:
   - du -h -d 1 $HOME/.ivy2/cache
   - du -h -d 2 $HOME/.sbt/

@@ -1,5 +1,7 @@
 import ReleaseTransformations._
 
+enablePlugins(DockerPlugin)
+
 // Commands to run on Travis CI
 val validateCommands = List(
   "clean",
@@ -65,10 +67,29 @@ lazy val root = (project in file("."))
       // Config
       "com.github.pureconfig" %% "pureconfig" % "0.8.0"
     ),
+    dockerfile in docker := {
+      // The assembly task generates a fat JAR file
+      val artifact: File = assembly.value
+      val artifactTargetPath = s"/app/${artifact.name}"
+
+      new Dockerfile {
+        from("openjdk:8-jre")
+        add(artifact, artifactTargetPath)
+        entryPoint("java", "-jar", artifactTargetPath)
+      }.volume("/ssh-keys")
+    },
+    imageNames in docker := Seq(
+      ImageName(s"${organization.value}/${name.value}:latest"),
+      ImageName(
+        namespace = Some(organization.value),
+        repository = name.value,
+        tag = Option(System.getenv("TRAVIS_COMMIT"))
+      )
+    ),
     // Build settings for all projects in this build
     inThisBuild(
       List(
-        organization := "de.frosner",
+        organization := "frosner",
         scmInfo := Some(ScmInfo(
           url("https://github.com/FRosner/gitlab-template"),
           "scm:git:https://github.com/FRosner/gitlab-template.git",
