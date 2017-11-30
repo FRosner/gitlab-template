@@ -75,7 +75,8 @@ lazy val root = (project in file("."))
       new Dockerfile {
         from("openjdk:8-jre")
         add(artifact, artifactTargetPath)
-        entryPoint("java", "-jar", artifactTargetPath)
+        add(Path("src/main/resources/run.sh").asFile, "/run.sh")
+        entryPoint("bash", "/run.sh", artifactTargetPath)
       }.volume("/ssh-keys")
     },
     imageNames in docker := Seq(
