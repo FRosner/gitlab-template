@@ -34,9 +34,9 @@ class GitlabSource(wsClient: StandaloneWSClient, url: String, privateToken: Stri
     extends StrictLogging {
 
   def getUsers: EitherT[Future, Error, Set[GitlabUser]] = {
-    val activeFilter = if (onlyActiveUsers) "?active=true" else ""
+    val activeFilter = if (onlyActiveUsers) "&active=true" else ""
     val request = wsClient
-      .url(s"$url/api/v4/users$activeFilter")
+      .url(s"$url/api/v4/users?per_page=100000$activeFilter")
       .withHttpHeaders(("PRIVATE-TOKEN", privateToken))
     logger.debug(s"Requesting users: ${request.url}")
     EitherT(request.get().map { response =>
