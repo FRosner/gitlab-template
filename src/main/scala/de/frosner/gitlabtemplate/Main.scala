@@ -44,11 +44,13 @@ object Main extends StrictLogging {
     val result = Try {
       val gitlabConf = conf.source.gitlab
       val filesystemConf = conf.sink.filesystem
+      val technicalUsersKeysConf = conf.source.technicalUsersKeys
 
       val gitlabClient =
         new GitlabSource(wsClient, gitlabConf.url, gitlabConf.privateToken, gitlabConf.onlyActiveUsers)
 
-      val technicalUsersKeysSource = new TechnicalUsersKeysSource(wsClient, conf.source.technicalUsersKeys.url)
+      val technicalUsersKeysSource =
+        new TechnicalUsersKeysSource(wsClient, technicalUsersKeysConf.url, technicalUsersKeysConf.httpBasicAuth)
 
       val filesystemSink =
         new FileSystemSink(filesystemConf.path, filesystemConf.publicKeysFile, filesystemConf.createEmptyKeyFile)
