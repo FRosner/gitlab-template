@@ -7,6 +7,14 @@
 
 ## Usage
 
+```sh
+docker run \
+  -v /path/to/your/ssh-keys:/ssh-keys \
+  -v /path/to/your/application.conf:/application.conf \
+  frosner/gitlab-template:0.1 \
+  -Dconfig.file=/application.conf
+```
+
 ## Configuration
 
 Configuration can be performed by creating an `application.conf` file in your classpath.
