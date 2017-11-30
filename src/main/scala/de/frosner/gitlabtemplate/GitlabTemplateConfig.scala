@@ -12,9 +12,13 @@ case class GitlabTemplateConfig(source: SourceConfig,
 
 case class SourceConfig(gitlab: GitlabConfig, technicalUsersKeys: TechnicalUsersKeysConfig)
 
-case class TechnicalUsersKeysConfig(url: String, httpBasicAuth: HttpBasicAuthConfig)
+case class TechnicalUsersKeysConfig(url: String,
+                                    httpBasicAuth: HttpBasicAuthConfig,
+                                    privateTokenAuth: PrivateTokenAuthConfig)
 
 case class HttpBasicAuthConfig(enabled: Boolean, username: String, password: String)
+
+case class PrivateTokenAuthConfig(enabled: Boolean, token: String)
 
 case class SinkConfig(filesystem: FilesystemConfig)
 

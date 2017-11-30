@@ -2,20 +2,17 @@ package de.frosner.gitlabtemplate
 
 import java.net.UnknownHostException
 
-import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.directives.{Credentials, RouteDirectives}
 import org.scalatest.{FlatSpec, Matchers}
 
-import scala.concurrent.Future
-import scala.util
-import scala.util.{Failure, Success, Try}
-
 class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests {
 
-  val authEnabled = HttpBasicAuthConfig(enabled = true, "user", "password")
-  val authDisabled = HttpBasicAuthConfig(enabled = false, "", "")
+  private val basicAuthEnabled = HttpBasicAuthConfig(enabled = true, "user", "password")
+  private val basicAuthDisabled = HttpBasicAuthConfig(enabled = false, "", "")
+  private val tokenAuthEnabled = PrivateTokenAuthConfig(enabled = true, "token")
+  private val tokenAuthDisabled = PrivateTokenAuthConfig(enabled = false, "token")
 
   "A technical users keys source" should "parse the technical users keys correctly" in {
     val technicalUsersFileName = "technical-users.conf"
@@ -38,7 +35,10 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
     } { implicit ec =>
       {
         case (wsClient, address) =>
-          val source = new TechnicalUsersKeysSource(wsClient, s"$address/$technicalUsersFileName", authDisabled)
+          val source = new TechnicalUsersKeysSource(wsClient,
+                                                    s"$address/$technicalUsersFileName",
+                                                    basicAuthDisabled,
+                                                    tokenAuthDisabled)
           val expected = TechnicalUsersKeys(
             authorizedUsers = Map(
               "techusr1" -> Set("usr1"),
@@ -54,12 +54,12 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
     }
   }
 
-  it should "authenticate if required" in {
+  it should "authenticate via basic auth if required" in {
     val technicalUsersFileName = "technical-users.conf"
     def authenticator(credentials: Credentials): Option[String] =
       credentials match {
-        case p @ Credentials.Provided(id) if p.verify(authEnabled.password) => Some(id)
-        case _                                                              => None
+        case p @ Credentials.Provided(id) if p.verify(basicAuthEnabled.password) => Some(id)
+        case _                                                                   => None
       }
     withServerAndClient {
       path(technicalUsersFileName) {
@@ -82,7 +82,10 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
     } { implicit ec =>
       {
         case (wsClient, address) =>
-          val source = new TechnicalUsersKeysSource(wsClient, s"$address/$technicalUsersFileName", authEnabled)
+          val source = new TechnicalUsersKeysSource(wsClient,
+                                                    s"$address/$technicalUsersFileName",
+                                                    basicAuthEnabled,
+                                                    tokenAuthDisabled)
           val expected = TechnicalUsersKeys(
             authorizedUsers = Map(
               "techusr1" -> Set("usr1"),
@@ -98,26 +101,139 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
     }
   }
 
-  it should "fail if authentication fails" in {
+  it should "fail if basic auth authentication fails" in {
     val technicalUsersFileName = "technical-users.conf"
     def authenticator(credentials: Credentials): Option[String] =
       credentials match {
-        case p @ Credentials.Provided(id) if p.verify(authEnabled.password) => Some(id)
-        case _                                                              => None
+        case p @ Credentials.Provided(id) if p.verify(basicAuthEnabled.password) => Some(id)
+        case _                                                                   => None
       }
     withServerAndClient {
       path(technicalUsersFileName) {
         get {
           authenticateBasic(realm = "secure", authenticator) { userName =>
-            complete("")
+            complete(StatusCodes.OK)
           }
         }
       }
     } { implicit ec =>
       {
         case (wsClient, address) =>
-          val source = new TechnicalUsersKeysSource(wsClient, s"$address/$technicalUsersFileName", authDisabled)
+          val source = new TechnicalUsersKeysSource(wsClient,
+                                                    s"$address/$technicalUsersFileName",
+                                                    basicAuthDisabled,
+                                                    tokenAuthDisabled)
           source.get.value.failed.map(_ shouldBe a[AuthenticationException])
+      }
+    }
+  }
+
+  it should "authenticate via private token if required" in {
+    val technicalUsersFileName = "technical-users.conf"
+    withServerAndClient {
+      path(technicalUsersFileName) {
+        get {
+          headerValueByName("PRIVATE-TOKEN") { token =>
+            if (token == tokenAuthEnabled.token)
+              complete(s"""
+                          |authorized-users = {
+                          |  techusr1 = [usr1]
+                          |  techusr2 = [usr1, usr2]
+                          |}
+                          |
+                          |authorized-keys = {
+                          |  techusr2 = ["ssh-rsa techusr2 xxx@yy.zz"]
+                          |  techusr3 = ["ssh-rsa techusr3 xxx@yy.zz"]
+                          |}
+                        """.stripMargin)
+            else
+              complete(StatusCodes.Unauthorized)
+          }
+        }
+      }
+    } { implicit ec =>
+      {
+        case (wsClient, address) =>
+          val source = new TechnicalUsersKeysSource(wsClient,
+                                                    s"$address/$technicalUsersFileName",
+                                                    basicAuthDisabled,
+                                                    tokenAuthEnabled)
+          val expected = TechnicalUsersKeys(
+            authorizedUsers = Map(
+              "techusr1" -> Set("usr1"),
+              "techusr2" -> Set("usr1", "usr2")
+            ),
+            authorizedKeys = Map(
+              "techusr2" -> Set("ssh-rsa techusr2 xxx@yy.zz"),
+              "techusr3" -> Set("ssh-rsa techusr3 xxx@yy.zz")
+            )
+          )
+          source.get.value.map(_ shouldBe Right(expected))
+      }
+    }
+  }
+
+  it should "fail if the wrong token is provided" in {
+    val technicalUsersFileName = "technical-users.conf"
+    withServerAndClient {
+      path(technicalUsersFileName) {
+        get {
+          headerValueByName("PRIVATE-TOKEN") { token =>
+            if (token == tokenAuthEnabled.token)
+              complete(s"""
+                          |authorized-users = {
+                          |  techusr1 = [usr1]
+                          |  techusr2 = [usr1, usr2]
+                          |}
+                          |
+                          |authorized-keys = {
+                          |  techusr2 = ["ssh-rsa techusr2 xxx@yy.zz"]
+                          |  techusr3 = ["ssh-rsa techusr3 xxx@yy.zz"]
+                          |}
+                        """.stripMargin)
+            else
+              complete(StatusCodes.Unauthorized)
+          }
+        }
+      }
+    } { implicit ec =>
+      {
+        case (wsClient, address) =>
+          val source = new TechnicalUsersKeysSource(wsClient,
+                                                    s"$address/$technicalUsersFileName",
+                                                    basicAuthDisabled,
+                                                    tokenAuthEnabled.copy(token = "wrong"))
+          val expected = TechnicalUsersKeys(
+            authorizedUsers = Map(
+              "techusr1" -> Set("usr1"),
+              "techusr2" -> Set("usr1", "usr2")
+            ),
+            authorizedKeys = Map(
+              "techusr2" -> Set("ssh-rsa techusr2 xxx@yy.zz"),
+              "techusr3" -> Set("ssh-rsa techusr3 xxx@yy.zz")
+            )
+          )
+          source.get.value.failed.map(_ shouldBe a[AuthenticationException])
+      }
+    }
+  }
+
+  it should "fail if the response is not 200" in {
+    val technicalUsersFileName = "technical-users.conf"
+    withServerAndClient {
+      path(technicalUsersFileName) {
+        get {
+          complete(StatusCodes.BadRequest)
+        }
+      }
+    } { implicit ec =>
+      {
+        case (wsClient, address) =>
+          val source = new TechnicalUsersKeysSource(wsClient,
+                                                    s"$address/$technicalUsersFileName",
+                                                    basicAuthDisabled,
+                                                    tokenAuthDisabled)
+          source.get.value.failed.map(_ shouldBe a[UnexpectedStatusCodeException])
       }
     }
   }
@@ -136,7 +252,10 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
     } { implicit ec =>
       {
         case (wsClient, address) =>
-          val source = new TechnicalUsersKeysSource(wsClient, s"$address/$technicalUsersFileName", authDisabled)
+          val source = new TechnicalUsersKeysSource(wsClient,
+                                                    s"$address/$technicalUsersFileName",
+                                                    basicAuthDisabled,
+                                                    tokenAuthDisabled)
           source.get.value.map(_ shouldBe a[Left[_, _]])
       }
     }
@@ -149,7 +268,8 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
         case (wsClient, address) =>
           val source = new TechnicalUsersKeysSource(wsClient,
                                                     s"http://doesnotexistIhope:12345/$technicalUsersFileName",
-                                                    authDisabled)
+                                                    basicAuthDisabled,
+                                                    tokenAuthDisabled)
           source.get.value.failed.map(_ shouldBe a[UnknownHostException])
       }
     }
