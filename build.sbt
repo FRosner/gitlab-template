@@ -77,7 +77,8 @@ lazy val root = (project in file("."))
         add(artifact, artifactTargetPath)
         add(Path("src/main/resources/run.sh").asFile, "/run.sh")
         entryPoint("bash", "/run.sh", artifactTargetPath)
-      }.volume("/ssh-keys")
+        volume("/ssh-keys")
+      }
     },
     imageNames in docker := Seq(
       Some((version in Compile).value),
