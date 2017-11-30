@@ -27,7 +27,7 @@ class FileSystemSink(rootDirectory: Path, publicKeysFileName: String, allowEmpty
       val numKeysWritten = nonEmptyUsersAndKeys.map {
         case (user, keys) =>
           val userDir = rootDirectory.resolve(user)
-          val publicKeysTmpFile = Files.createTempFile(user, publicKeysFileName)
+          val publicKeysTmpFile = userDir.resolve(s".$publicKeysFileName.tmp")
           val publicKeysFile = userDir.resolve(publicKeysFileName)
           if (userDir.toFile.isDirectory) {
             logger.trace(s"User directory '${userDir.toAbsolutePath}' already exists")
