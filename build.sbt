@@ -71,12 +71,13 @@ lazy val root = (project in file("."))
       // The assembly task generates a fat JAR file
       val artifact: File = assembly.value
       val artifactTargetPath = s"/app/${artifact.name}"
+      val runScript = "run.sh"
 
       new Dockerfile {
         from("openjdk:8-jre")
         add(artifact, artifactTargetPath)
-        add(Path("src/main/resources/run.sh").asFile, "/run.sh")
-        entryPoint("bash", "/run.sh", artifactTargetPath)
+        add(Path(s"src/main/resources/$runScript").asFile, s"/$runScript")
+        entryPoint("bash", s"/$runScript", artifactTargetPath)
         volume("/ssh-keys")
       }
     },
