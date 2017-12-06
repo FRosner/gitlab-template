@@ -44,7 +44,7 @@ class FileSystemSink(rootDirectory: Path, publicKeysFileName: String, allowEmpty
           Files.move(publicKeysTmpFile, publicKeysFile, StandardCopyOption.ATOMIC_MOVE)
           keys.size
       }.sum
-      logger.debug(s"Successfully persisted a total of ${nonEmptyUsersAndKeys.size} key(s) for $numKeysWritten user(s)")
+      logger.debug(s"Successfully persisted a total of $numKeysWritten key(s) for ${nonEmptyUsersAndKeys.size} user(s)")
       (nonEmptyUsersAndKeys.size, numKeysWritten)
     }
   }
