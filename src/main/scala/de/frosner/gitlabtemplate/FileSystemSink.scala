@@ -14,7 +14,7 @@ class FileSystemSink(rootDirectory: Path, publicKeysFileName: String, allowEmpty
   def write(usersAndKeys: Map[Username, Set[PublicKeyType]]): Try[Unit] = synchronized {
     Try {
       val presentUserDirectories = rootDirectory.toFile.listFiles().filter(_.isDirectory).map(_.getName).toSet
-      val nonEmptyUsersAndKeys = 
+      val nonEmptyUsersAndKeys =
         if (allowEmpty) {
           usersAndKeys
         } else {
