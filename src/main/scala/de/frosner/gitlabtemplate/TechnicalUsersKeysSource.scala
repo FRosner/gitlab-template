@@ -24,10 +24,6 @@ class TechnicalUsersKeysSource(wsClient: StandaloneWSClient,
       .url(url)
     val authRequest = (addBasicAuth(httpBasicAuthConfig) _)
       .andThen(addPrivateTokenAuth(privateTokenAuthConfig))(request)
-    if (httpBasicAuthConfig.enabled)
-      request.withAuth(httpBasicAuthConfig.username, httpBasicAuthConfig.password, WSAuthScheme.BASIC)
-    else
-      request
     logger.debug(s"Requesting technical users keys: ${request.url}")
     EitherT(authRequest.get().map { response =>
       response.status match {
