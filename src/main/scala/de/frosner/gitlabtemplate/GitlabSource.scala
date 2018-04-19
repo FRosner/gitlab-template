@@ -29,21 +29,53 @@ import de.frosner.gitlabtemplate.Main.{PublicKeyType, Username}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class GitlabSource(wsClient: StandaloneWSClient, url: String, privateToken: String, onlyActiveUsers: Boolean)(
-    implicit ec: ExecutionContext)
+class GitlabSource(wsClient: StandaloneWSClient,
+                   url: String,
+                   privateToken: String,
+                   onlyActiveUsers: Boolean,
+                   perPage: Int)(implicit ec: ExecutionContext)
     extends StrictLogging {
 
   def getUsers: EitherT[Future, Error, Set[GitlabUser]] = {
     val activeFilter = if (onlyActiveUsers) "&active=true" else ""
-    val request = wsClient
-      .url(s"$url/api/v4/users?per_page=100000$activeFilter")
-      .withHttpHeaders(("PRIVATE-TOKEN", privateToken))
-    logger.debug(s"Requesting users: ${request.url}")
-    EitherT(request.get().map { response =>
-      val body = response.body[JsValue]
-      Json.fromJson[Set[GitlabUser]](body).asEither
-    }).leftMap(GitlabError)
+    getUsers(EitherT.right[Future, Error, Set[GitlabUser]](Future.successful(Set())), activeFilter, 1, 0)
   }
+
+  private def getUsers(result: EitherT[Future, Error, Set[GitlabUser]],
+                       activeFilter: String,
+                       pageNumber: Int,
+                       prevSize: Int): EitherT[Future, Error, Set[GitlabUser]] =
+    result.flatMap(
+      gitlabUsers => {
+        val currentSize = gitlabUsers.size
+        if (pageNumber > 1 && prevSize == currentSize) {
+          // If it is not the first page the results are the same return
+          EitherT.right(Future.successful(gitlabUsers))
+        } else { // else recurse
+          val request = wsClient
+            .url(s"$url/api/v4/users?per_page=$perPage&page=$pageNumber$activeFilter")
+            .withHttpHeaders(("PRIVATE-TOKEN", privateToken))
+          logger.debug(s"Requesting users: ${request.url}")
+          EitherT(request.get().map { response =>
+            val body = response.body[JsValue]
+            Json.fromJson[Set[GitlabUser]](body).asEither
+          }).leftMap(GitlabError)
+            .leftMap(_.asInstanceOf[Error])
+            .flatMap(
+              newGitlabUsers => {
+                // FIXME: This might be bad for performance if there are too many pages
+                // Can we make this tail recursive?
+                getUsers(
+                  EitherT.right(Future.successful(gitlabUsers ++ newGitlabUsers)),
+                  activeFilter,
+                  pageNumber + 1,
+                  currentSize
+                )
+              }
+            )
+        }
+      }
+    )
 
   def getSshKeys(users: Set[GitlabUser]): EitherT[Future, Error, Map[Username, Set[PublicKeyType]]] = {
     val futureUsersAndKeys =

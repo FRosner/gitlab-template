@@ -28,7 +28,58 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
             GitlabUser(1, "usr1"),
             GitlabUser(2, "usr2")
           )
-          new GitlabSource(wsClient, address, "token", false).getUsers.value
+          new GitlabSource(wsClient, address, "token", false, 100).getUsers.value
+            .map(_ shouldBe Right(expected))
+      }
+    }
+  }
+
+  "Getting users through a Gitlab source should work with pagination" should "work" in {
+    withServerAndClient {
+      path("api" / "v4" / "users") {
+        get {
+          parameters('per_page.as[Int], 'page.as[Int]) { (perPage, page) =>
+            {
+              assert(perPage > 0)
+              assert(page > 0)
+              val users = Array(
+                GitlabUser(1, "usr1"),
+                GitlabUser(2, "usr2"),
+                GitlabUser(3, "usr3"),
+                GitlabUser(4, "usr4"),
+                GitlabUser(5, "usr5"),
+                GitlabUser(6, "usr6"),
+                GitlabUser(7, "usr7")
+              )
+              val lowerLimit = perPage * (page - 1)
+              if (lowerLimit > (users.length - 1)) {
+                complete(s"""[]""")
+              } else {
+                val upperLimit = Math.min(lowerLimit + Math.min(perPage, users.length), users.length)
+                complete(
+                  "[" +
+                    (for (i <- lowerLimit until upperLimit)
+                      yield s"""{ "id": ${users(i).id}, "username": "${users(i).username}" }""").mkString(",") +
+                    "]"
+                )
+              }
+            }
+          }
+        }
+      }
+    } { implicit ec =>
+      {
+        case (wsClient, address) =>
+          val expected = Set(
+            GitlabUser(1, "usr1"),
+            GitlabUser(2, "usr2"),
+            GitlabUser(3, "usr3"),
+            GitlabUser(4, "usr4"),
+            GitlabUser(5, "usr5"),
+            GitlabUser(6, "usr6"),
+            GitlabUser(7, "usr7")
+          )
+          new GitlabSource(wsClient, address, "token", false, 2).getUsers.value
             .map(_ shouldBe Right(expected))
       }
     }
@@ -49,7 +100,7 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
     } { implicit ec =>
       {
         case (wsClient, address) =>
-          new GitlabSource(wsClient, address, "token", false).getUsers.value
+          new GitlabSource(wsClient, address, "token", false, 100).getUsers.value
             .map(_ shouldBe a[Left[_, _]])
       }
     }
@@ -59,7 +110,7 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
     withServerAndClient { RouteDirectives.reject } { implicit ec =>
       {
         case (wsClient, address) =>
-          new GitlabSource(wsClient, "http://dsafdsgdfsfdsfdsf", "token", false).getUsers.value.failed
+          new GitlabSource(wsClient, "http://dsafdsgdfsfdsfdsf", "token", false, 100).getUsers.value.failed
             .map(_ shouldBe a[UnknownHostException])
       }
     }
@@ -87,7 +138,7 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
             "usr1" -> Set("key1", "key2"),
             "usr2" -> Set("key3")
           )
-          new GitlabSource(wsClient, address, "token", false)
+          new GitlabSource(wsClient, address, "token", false, 100)
             .getSshKeys(users)
             .value
             .map(_ shouldBe Right(expected))
@@ -105,7 +156,7 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
     } { implicit ec =>
       {
         case (wsClient, address) =>
-          new GitlabSource(wsClient, address, "token", false)
+          new GitlabSource(wsClient, address, "token", false, 100)
             .getSshKeys(Set(GitlabUser(1, "usr1")))
             .value
             .map(_ shouldBe a[Left[_, _]])
@@ -117,7 +168,7 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
     withServerAndClient { RouteDirectives.reject } { implicit ec =>
       {
         case (wsClient, address) =>
-          new GitlabSource(wsClient, address, "token", false)
+          new GitlabSource(wsClient, address, "token", false, 100)
             .getSshKeys(Set(GitlabUser(1, "usr1")))
             .value
             .failed
