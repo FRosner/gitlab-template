@@ -51,6 +51,8 @@ lazy val root = (project in file("."))
       "com.typesafe.play" %% "play-ws-standalone-json" % "1.1.3",
       // HTTP server for testing
       "com.typesafe.akka" %% "akka-http" % "10.0.10",
+      // Nicer streams
+      "com.typesafe.akka" %% "akka-stream" % "2.5.12",
       // Nicer syntax for type classes
       "com.github.mpilquist" %% "simulacrum" % "0.10.0",
       // Logging

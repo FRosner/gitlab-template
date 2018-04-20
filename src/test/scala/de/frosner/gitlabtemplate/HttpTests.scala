@@ -6,19 +6,19 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server._
-import akka.stream.ActorMaterializer
-import org.scalatest.{Assertion, AsyncFlatSpec}
+import akka.stream.{ActorMaterializer, Materializer}
+import org.scalatest.Assertion
 import play.api.libs.ws.StandaloneWSClient
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future}
-import scala.util.Try
 
 trait HttpTests {
 
-  def withServerAndClient(route: Route)(
-      assertionGen: ExecutionContext => (StandaloneWSClient, String) => Future[Assertion]): Assertion = {
+  def withServerAndClientV2(route: Route)(assertionGen: ExecutionContext => Materializer => (
+                                              StandaloneWSClient,
+                                              String) => Future[Assertion]): Assertion = {
     implicit val system = ActorSystem(this.getClass.getSimpleName + UUID.randomUUID().toString)
     implicit val materializer = ActorMaterializer()
     implicit val executionContext = system.dispatcher
@@ -30,7 +30,8 @@ trait HttpTests {
 
     // run the assertion and wait for it to complete
     val assertion =
-      assertionGen(executionContext)(wsClient, s"http://${bindingAddress.getHostName}:${bindingAddress.getPort}")
+      assertionGen(executionContext)(materializer)(wsClient,
+                                                   s"http://${bindingAddress.getHostName}:${bindingAddress.getPort}")
     Await.ready(assertion, 5.seconds)
 
     // cleanup
@@ -41,5 +42,13 @@ trait HttpTests {
 
     Await.result(assertion, 5.seconds)
   }
+
+  def withServerAndClient(route: Route)(
+      assertionGen: ExecutionContext => (StandaloneWSClient, String) => Future[Assertion]): Assertion =
+    withServerAndClientV2(route) { implicit ec => _ =>
+      {
+        case (wsClient, address) => assertionGen(ec)(wsClient, address)
+      }
+    }
 
 }
