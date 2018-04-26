@@ -12,13 +12,13 @@ import play.api.libs.ws.StandaloneWSClient
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 
 trait HttpTests {
 
-  def withServerAndClientV2(route: Route)(assertionGen: ExecutionContext => Materializer => (
-                                              StandaloneWSClient,
-                                              String) => Future[Assertion]): Assertion = {
+  def withServerAndClient(route: Route)(assertionGen: ExecutionContext => Materializer => (
+                                            StandaloneWSClient,
+                                            String) => Future[Assertion]): Assertion = {
     implicit val system = ActorSystem(this.getClass.getSimpleName + UUID.randomUUID().toString)
     implicit val materializer = ActorMaterializer()
     implicit val executionContext = system.dispatcher
@@ -42,13 +42,5 @@ trait HttpTests {
 
     Await.result(assertion, 5.seconds)
   }
-
-  def withServerAndClient(route: Route)(
-      assertionGen: ExecutionContext => (StandaloneWSClient, String) => Future[Assertion]): Assertion =
-    withServerAndClientV2(route) { implicit ec => _ =>
-      {
-        case (wsClient, address) => assertionGen(ec)(wsClient, address)
-      }
-    }
 
 }

@@ -32,7 +32,7 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
              """.stripMargin)
         }
       }
-    } { implicit ec =>
+    } { implicit ec => implicit materializer =>
       {
         case (wsClient, address) =>
           val source = new TechnicalUsersKeysSource(wsClient,
@@ -79,7 +79,7 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
           }
         }
       }
-    } { implicit ec =>
+    } { implicit ec => implicit materializer =>
       {
         case (wsClient, address) =>
           val source = new TechnicalUsersKeysSource(wsClient,
@@ -116,7 +116,7 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
           }
         }
       }
-    } { implicit ec =>
+    } { implicit ec => implicit materializer =>
       {
         case (wsClient, address) =>
           val source = new TechnicalUsersKeysSource(wsClient,
@@ -151,7 +151,7 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
           }
         }
       }
-    } { implicit ec =>
+    } { implicit ec => implicit materializer =>
       {
         case (wsClient, address) =>
           val source = new TechnicalUsersKeysSource(wsClient,
@@ -196,7 +196,7 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
           }
         }
       }
-    } { implicit ec =>
+    } { implicit ec => implicit materializer =>
       {
         case (wsClient, address) =>
           val source = new TechnicalUsersKeysSource(wsClient,
@@ -226,7 +226,7 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
           complete(StatusCodes.BadRequest)
         }
       }
-    } { implicit ec =>
+    } { implicit ec => implicit materializer =>
       {
         case (wsClient, address) =>
           val source = new TechnicalUsersKeysSource(wsClient,
@@ -249,7 +249,7 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
              """.stripMargin)
         }
       }
-    } { implicit ec =>
+    } { implicit ec => implicit materializer =>
       {
         case (wsClient, address) =>
           val source = new TechnicalUsersKeysSource(wsClient,
@@ -263,7 +263,7 @@ class TechnicalUsersKeysSourceSpec extends FlatSpec with Matchers with HttpTests
 
   it should "fail if the technical users keys does not exist" in {
     val technicalUsersFileName = "technical-users.conf"
-    withServerAndClient { RouteDirectives.reject } { implicit ec =>
+    withServerAndClient { RouteDirectives.reject } { implicit ec => implicit materializer =>
       {
         case (wsClient, address) =>
           val source = new TechnicalUsersKeysSource(wsClient,

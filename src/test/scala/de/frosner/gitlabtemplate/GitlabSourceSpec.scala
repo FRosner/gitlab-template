@@ -15,7 +15,7 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
 
   def usersServer(users: Array[GitlabUser])(
       assertionGen: ExecutionContext => Materializer => (StandaloneWSClient, String) => Future[Assertion]): Assertion =
-    withServerAndClientV2 {
+    withServerAndClient {
       path("api" / "v4" / "users") {
         get {
           parameters('per_page.as[Int], 'page.as[Int]) { (perPage, page) =>
@@ -83,7 +83,7 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
   }
 
   it should "fail if it cannot parse the response" in {
-    withServerAndClientV2 {
+    withServerAndClient {
       path("api" / "v4" / "users") {
         get {
           complete(s"""
@@ -104,7 +104,7 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
   }
 
   it should "fail if gitlab does not respond" in {
-    withServerAndClientV2 { RouteDirectives.reject } { implicit ec => implicit materializer =>
+    withServerAndClient { RouteDirectives.reject } { implicit ec => implicit materializer =>
       {
         case (wsClient, address) =>
           new GitlabSource(wsClient, "http://dsafdsgdfsfdsfdsf", "token", false, 100).getUsers.value.failed
@@ -114,7 +114,7 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
   }
 
   "Getting SSH keys through a Gitlab source" should "work" in {
-    withServerAndClientV2 {
+    withServerAndClient {
       path("api" / "v4" / "users" / "1" / "keys") {
         get {
           complete("""[ { "key": "key1" }, { "key": "key2" } ]""")
@@ -144,7 +144,7 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
   }
 
   it should "fail if the keys cannot be parsed" in {
-    withServerAndClientV2 {
+    withServerAndClient {
       path("api" / "v4" / "users" / "1" / "keys") {
         get {
           complete("""[ { "foo": "bar" } ]""")
@@ -162,7 +162,7 @@ class GitlabSourceSpec extends FlatSpec with Matchers with HttpTests {
   }
 
   it should "fail if the keys endpoint does not exist" in {
-    withServerAndClientV2 { RouteDirectives.reject } { implicit ec => implicit materializer =>
+    withServerAndClient { RouteDirectives.reject } { implicit ec => implicit materializer =>
       {
         case (wsClient, address) =>
           new GitlabSource(wsClient, address, "token", false, 100)
