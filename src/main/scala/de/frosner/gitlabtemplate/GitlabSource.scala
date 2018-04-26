@@ -17,32 +17,46 @@
 package de.frosner.gitlabtemplate
 
 import cats.data.EitherT
-import play.api.libs.json.{JsPath, JsValue, Json, JsonValidationError}
+import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.JsonBodyReadables._
 import play.api.libs.ws.StandaloneWSClient
-import cats.instances.all._
-import cats.syntax.all._
+import cats.implicits._
 import com.typesafe.scalalogging.StrictLogging
 import de.frosner.gitlabtemplate.Error.GitlabError
 import GitlabUser.format
+import akka.stream.Materializer
+import akka.stream.scaladsl.Source
 import de.frosner.gitlabtemplate.Main.{PublicKeyType, Username}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class GitlabSource(wsClient: StandaloneWSClient, url: String, privateToken: String, onlyActiveUsers: Boolean)(
-    implicit ec: ExecutionContext)
+class GitlabSource(wsClient: StandaloneWSClient,
+                   url: String,
+                   privateToken: String,
+                   onlyActiveUsers: Boolean,
+                   perPage: Int)(implicit ec: ExecutionContext, materializer: Materializer)
     extends StrictLogging {
 
   def getUsers: EitherT[Future, Error, Set[GitlabUser]] = {
     val activeFilter = if (onlyActiveUsers) "&active=true" else ""
-    val request = wsClient
-      .url(s"$url/api/v4/users?per_page=100000$activeFilter")
-      .withHttpHeaders(("PRIVATE-TOKEN", privateToken))
-    logger.debug(s"Requesting users: ${request.url}")
-    EitherT(request.get().map { response =>
-      val body = response.body[JsValue]
-      Json.fromJson[Set[GitlabUser]](body).asEither
-    }).leftMap(GitlabError)
+
+    EitherT[Future, Error, Set[GitlabUser]](
+      Source(Stream.from(1))
+        .mapAsync(1)(
+          pageNumber => {
+            val request = wsClient
+              .url(s"$url/api/v4/users?per_page=$perPage&page=$pageNumber$activeFilter")
+              .withHttpHeaders(("PRIVATE-TOKEN", privateToken))
+            logger.debug(s"Requesting users: ${request.url}")
+            request.get().map { response =>
+              val body = response.body[JsValue]
+              Json.fromJson[Set[GitlabUser]](body).asEither.leftMap(GitlabError)
+            }
+          }
+        )
+        .takeWhile(either => either.exists(_.nonEmpty), inclusive = true)
+        .runReduce((r1, r2) => r1.combine(r2)))
+
   }
 
   def getSshKeys(users: Set[GitlabUser]): EitherT[Future, Error, Map[Username, Set[PublicKeyType]]] = {

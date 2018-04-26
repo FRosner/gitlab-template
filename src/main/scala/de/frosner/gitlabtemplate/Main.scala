@@ -47,7 +47,11 @@ object Main extends StrictLogging {
       val technicalUsersKeysConf = conf.source.technicalUsersKeys
 
       val gitlabClient =
-        new GitlabSource(wsClient, gitlabConf.url, gitlabConf.privateToken, gitlabConf.onlyActiveUsers)
+        new GitlabSource(wsClient,
+                         gitlabConf.url,
+                         gitlabConf.privateToken,
+                         gitlabConf.onlyActiveUsers,
+                         gitlabConf.perPage)
 
       val technicalUsersKeysSource =
         new TechnicalUsersKeysSource(wsClient,
